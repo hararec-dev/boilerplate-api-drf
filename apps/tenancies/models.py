@@ -1,3 +1,5 @@
+from typing import Any, Optional, TYPE_CHECKING, List, Dict
+
 from django.conf import settings
 from django.contrib.auth.models import Permission
 from django.contrib.postgres.fields import ArrayField
@@ -5,6 +7,9 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.models import BaseAuditModel, TimestampedModel
+
+if TYPE_CHECKING:
+    from apps.users.models import User
 
 
 class Tenant(BaseAuditModel):
@@ -21,14 +26,14 @@ class Tenant(BaseAuditModel):
         PENDING_SETUP = "pending_setup", _("Pending setup")
         TRIAL = "trial", _("Trial")
 
-    name = models.CharField(_("name"), max_length=255)
-    slug = models.SlugField(
+    name: models.CharField[str] = models.CharField(_("name"), max_length=255)
+    slug: models.SlugField[str] = models.SlugField(
         _("slug"),
         max_length=100,
         unique=True,
         help_text=_("Unique URL identifier, e.g. 'my-company'"),
     )
-    domain = models.CharField(
+    domain: models.CharField[Optional[str]] = models.CharField(
         _("domain"),
         max_length=255,
         unique=True,
@@ -36,10 +41,10 @@ class Tenant(BaseAuditModel):
         blank=True,
         help_text=_("Custom domain for the tenant"),
     )
-    status = models.CharField(
+    status: models.CharField[str] = models.CharField(
         _("status"), max_length=50, choices=Status.choices, default=Status.PENDING_SETUP
     )
-    parent_tenant = models.ForeignKey(
+    parent_tenant: models.ForeignKey["Tenant", Optional["Tenant"]] = models.ForeignKey(
         "self",
         verbose_name=_("parent tenant"),
         on_delete=models.SET_NULL,
@@ -47,27 +52,29 @@ class Tenant(BaseAuditModel):
         blank=True,
         help_text=_("For hierarchical structures (resellers, etc.)"),
     )
-    onboarding_completed_at = models.DateTimeField(
+    onboarding_completed_at: models.DateTimeField[Optional[Any]] = models.DateTimeField(
         _("onboarding completed at"), null=True, blank=True
     )
-    available_credits = models.DecimalField(
+    available_credits: models.DecimalField = models.DecimalField(
         _("available credits"), max_digits=12, decimal_places=2, default=0
     )
-    billing_strategy = models.CharField(
+    billing_strategy: models.CharField[str] = models.CharField(
         _("billing strategy"), max_length=50, default="subscription"
     )
-    data_retention_policy = models.JSONField(
+    data_retention_policy: models.JSONField[Optional[Any]] = models.JSONField(
         _("data retention policy"), null=True, blank=True
     )
 
-    def __str__(self):
+    roles: "models.Manager[Role]"
+
+    def __str__(self) -> str:
         return self.name
 
     class Meta:
-        db_table = "tenants"
-        verbose_name = _("tenant")
-        verbose_name_plural = _("tenants")
-        ordering = ["name"]
+        db_table: str = "tenants"
+        verbose_name: str = _("tenant")
+        verbose_name_plural: str = _("tenants")
+        ordering: list[str] = ["name"]
 
 
 class TenantConfiguration(TimestampedModel):
@@ -77,30 +84,36 @@ class TenantConfiguration(TimestampedModel):
     Corresponds to the 'tenant_configurations' table.
     """
 
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
-    data_residency_region = models.CharField(
+    tenant: models.ForeignKey[Tenant] = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE
+    )
+    data_residency_region: models.CharField[str] = models.CharField(
         _("data residency region"), max_length=50, default="us-east-1"
     )
-    timezone = models.CharField(_("timezone"), max_length=50, default="UTC")
-    locale = models.CharField(_("locale"), max_length=10, default="en-US")
-    branding = models.JSONField(
+    timezone: models.CharField[str] = models.CharField(
+        _("timezone"), max_length=50, default="UTC"
+    )
+    locale: models.CharField[str] = models.CharField(
+        _("locale"), max_length=10, default="en-US"
+    )
+    branding: models.JSONField[Dict[str, Any]] = models.JSONField(
         _("branding"),
         default=dict,
         help_text=_("Container for tenant branding."),
     )
-    settings = models.JSONField(
+    settings: models.JSONField[Dict[str, Any]] = models.JSONField(
         _("settings"),
         default=dict,
         help_text=_("Container for various tenant-specific settings."),
     )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Configuration for {self.tenant.name}"
 
     class Meta:
-        db_table = "tenant_configurations"
-        verbose_name = _("tenant configuration")
-        verbose_name_plural = _("tenant configurations")
+        db_table: str = "tenant_configurations"
+        verbose_name: str = _("tenant configuration")
+        verbose_name_plural: str = _("tenant configurations")
 
 
 class Role(TimestampedModel):
@@ -110,30 +123,34 @@ class Role(TimestampedModel):
     Corresponds to the 'roles' table.
     """
 
-    tenant = models.ForeignKey(
+    tenant: models.ForeignKey[Optional[Tenant]] = models.ForeignKey(
         Tenant,
         on_delete=models.CASCADE,
         null=True,
         related_name="roles",
         help_text=_("Null for global system roles."),
     )
-    name = models.CharField(_("name"), max_length=100)
-    description = models.TextField(_("description"), blank=True, null=True)
-    permissions = models.ManyToManyField(
-        Permission, through="RolePermission", verbose_name=_("permissions")
+    name: models.CharField[str] = models.CharField(_("name"), max_length=100)
+    description: models.TextField[Optional[str]] = models.TextField(
+        _("description"), blank=True, null=True
+    )
+    permissions: models.ManyToManyField[Permission, "RolePermission"] = (
+        models.ManyToManyField(
+            Permission, through="RolePermission", verbose_name=_("permissions")
+        )
     )
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.tenant:
             return f"{self.name} ({self.tenant.name})"
         return f"{self.name} (System Role)"
 
     class Meta:
-        db_table = "roles"
-        verbose_name = _("role")
-        verbose_name_plural = _("roles")
-        unique_together = [["tenant", "name"]]
-        indexes = [
+        db_table: str = "roles"
+        verbose_name: str = _("role")
+        verbose_name_plural: str = _("roles")
+        unique_together: list[list[str]] = [["tenant", "name"]]
+        indexes: list[models.Index] = [
             models.Index(fields=["tenant"], name="idx_roles_tenant_id"),
         ]
 
@@ -144,12 +161,14 @@ class RolePermission(models.Model):
     Corresponds to the 'role_permissions' table.
     """
 
-    role = models.ForeignKey(Role, on_delete=models.CASCADE)
-    permission = models.ForeignKey(Permission, on_delete=models.CASCADE)
+    role: models.ForeignKey[Role] = models.ForeignKey(Role, on_delete=models.CASCADE)
+    permission: models.ForeignKey[Permission] = models.ForeignKey(
+        Permission, on_delete=models.CASCADE
+    )
 
     class Meta:
-        db_table = "role_permissions"
-        unique_together = [["role", "permission"]]
+        db_table: str = "role_permissions"
+        unique_together: list[list[str]] = [["role", "permission"]]
 
 
 class UserTenantRole(models.Model):
@@ -158,22 +177,22 @@ class UserTenantRole(models.Model):
     Corresponds to the 'user_tenant_roles' table.
     """
 
-    user = models.ForeignKey(
+    user: models.ForeignKey["User"] = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name=_("user")
     )
-    tenant = models.ForeignKey(
+    tenant: models.ForeignKey[Tenant] = models.ForeignKey(
         Tenant, on_delete=models.CASCADE, verbose_name=_("tenant")
     )
-    role = models.ForeignKey(
+    role: models.ForeignKey[Role] = models.ForeignKey(
         Role, on_delete=models.PROTECT, verbose_name=_("role")
     )  # PROTECT = ON DELETE RESTRICT
 
     class Meta:
-        db_table = "user_tenant_roles"
-        verbose_name = _("user role in tenant")
-        verbose_name_plural = _("user roles in tenant")
-        unique_together = [["user", "tenant", "role"]]
-        indexes = [
+        db_table: str = "user_tenant_roles"
+        verbose_name: str = _("user role in tenant")
+        verbose_name_plural: str = _("user roles in tenant")
+        unique_together: list[list[str]] = [["user", "tenant", "role"]]
+        indexes: list[models.Index] = [
             models.Index(fields=["user"], name="idx_u_user_tenant_roles_id"),
             models.Index(fields=["tenant"], name="idx_t_user_tenant_roles_id"),
         ]
@@ -185,32 +204,38 @@ class Department(BaseAuditModel):
     Corresponds to the 'departments' table.
     """
 
-    tenant = models.ForeignKey(
+    tenant: models.ForeignKey[Tenant] = models.ForeignKey(
         Tenant, on_delete=models.CASCADE, verbose_name=_("tenant")
     )
-    parent_department = models.ForeignKey(
+    parent_department: models.ForeignKey[
+        Optional["Department"], Optional["Department"]
+    ] = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         verbose_name=_("parent department"),
     )
-    name = models.CharField(_("name"), max_length=255)
-    description = models.TextField(_("description"), blank=True, null=True)
-    contact_email = models.EmailField(_("contact email"), blank=True, null=True)
-    legal_name = models.CharField(
+    name: models.CharField[str] = models.CharField(_("name"), max_length=255)
+    description: models.TextField[Optional[str]] = models.TextField(
+        _("description"), blank=True, null=True
+    )
+    contact_email: models.EmailField[Optional[str]] = models.EmailField(
+        _("contact email"), blank=True, null=True
+    )
+    legal_name: models.CharField[Optional[str]] = models.CharField(
         _("legal name"), max_length=200, blank=True, null=True
     )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
     class Meta:
-        db_table = "departments"
-        verbose_name = _("department")
-        verbose_name_plural = _("departments")
-        unique_together = [["tenant", "name"]]
-        indexes = [
+        db_table: str = "departments"
+        verbose_name: str = _("department")
+        verbose_name_plural: str = _("departments")
+        unique_together: list[list[str]] = [["tenant", "name"]]
+        indexes: list[models.Index] = [
             models.Index(fields=["tenant"], name="idx_departments_tenant_id"),
         ]
 
@@ -221,22 +246,24 @@ class UserDepartmentRole(models.Model):
     Corresponds to the 'user_department_roles' table.
     """
 
-    user = models.ForeignKey(
+    user: models.ForeignKey["User"] = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name=_("user")
     )
-    department = models.ForeignKey(
+    department: models.ForeignKey[Department] = models.ForeignKey(
         Department, on_delete=models.CASCADE, verbose_name=_("department")
     )
-    role = models.ForeignKey(Role, on_delete=models.PROTECT, verbose_name=_("role"))
+    role: models.ForeignKey[Role] = models.ForeignKey(
+        Role, on_delete=models.PROTECT, verbose_name=_("role")
+    )
 
     class Meta:
-        db_table = "user_department_roles"
-        verbose_name = _("user department rol")
-        verbose_name_plural = _("user department roles")
-        unique_together = [
+        db_table: str = "user_department_roles"
+        verbose_name: str = _("user department rol")
+        verbose_name_plural: str = _("user department roles")
+        unique_together: list[list[str]] = [
             ["user", "department", "role"],
         ]
-        indexes = [
+        indexes: list[models.Index] = [
             models.Index(fields=["user"], name="idx_dept_users_user_id"),
             models.Index(fields=["department"], name="idx_dept_users_dept_id"),
         ]
@@ -254,30 +281,32 @@ class Invitation(TimestampedModel):
         EXPIRED = "expired", _("Expired")
         REVOKED = "revoked", _("Revoked")
 
-    tenant = models.ForeignKey(
+    tenant: models.ForeignKey[Tenant] = models.ForeignKey(
         Tenant, on_delete=models.CASCADE, verbose_name=_("tenant")
     )
-    department = models.ForeignKey(
+    department: models.ForeignKey[Department] = models.ForeignKey(
         Department, on_delete=models.CASCADE, verbose_name=_("organization")
     )
-    invited_by_user = models.ForeignKey(
+    invited_by_user: models.ForeignKey["User"] = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name=_("invited by")
     )
-    role = models.ForeignKey(
+    role: models.ForeignKey[Role] = models.ForeignKey(
         Role, on_delete=models.CASCADE, verbose_name=_("assigned role")
     )
-    invitee_email = models.EmailField(_("invitee email"))
-    token = models.CharField(_("token"), max_length=64, unique=True)
-    status = models.CharField(
+    invitee_email: models.EmailField[str] = models.EmailField(_("invitee email"))
+    token: models.CharField[str] = models.CharField(
+        _("token"), max_length=64, unique=True
+    )
+    status: models.CharField[str] = models.CharField(
         _("status"), max_length=50, choices=Status.choices, default=Status.PENDING
     )
-    expires_at = models.DateTimeField(_("expires at"))
+    expires_at: models.DateTimeField = models.DateTimeField(_("expires at"))
 
     class Meta:
-        db_table = "invitations"
-        verbose_name = _("invitation")
-        verbose_name_plural = _("invitations")
-        indexes = [
+        db_table: str = "invitations"
+        verbose_name: str = _("invitation")
+        verbose_name_plural: str = _("invitations")
+        indexes: list[models.Index] = [
             models.Index(fields=["tenant"], name="idx_invitations_tenant_id"),
             models.Index(fields=["department"], name="idx_invit_dep_id"),
         ]
@@ -289,17 +318,19 @@ class TenantAuditPolicy(models.Model):
     Corresponds to the 'tenant_audit_policies' table.
     """
 
-    tenant = models.OneToOneField(
+    tenant: models.OneToOneField[Tenant] = models.OneToOneField(
         Tenant,
         on_delete=models.CASCADE,
         primary_key=True,
         verbose_name=_("tenant"),
     )
-    log_retention_days = models.IntegerField(_("log retention days"), default=365)
-    require_log_signatures = models.BooleanField(
+    log_retention_days: models.IntegerField = models.IntegerField(
+        _("log retention days"), default=365
+    )
+    require_log_signatures: models.BooleanField = models.BooleanField(
         _("require log signatures"), default=False
     )
-    sensitive_tables = ArrayField(
+    sensitive_tables: ArrayField[List[str]] = ArrayField(
         models.TextField(),
         verbose_name=_("sensitive tables"),
         default=list,
@@ -308,6 +339,6 @@ class TenantAuditPolicy(models.Model):
     )
 
     class Meta:
-        db_table = "tenant_audit_policies"
-        verbose_name = _("tenant audit policy")
-        verbose_name_plural = _("tenant audit policies")
+        db_table: str = "tenant_audit_policies"
+        verbose_name: str = _("tenant audit policy")
+        verbose_name_plural: str = _("tenant audit policies")

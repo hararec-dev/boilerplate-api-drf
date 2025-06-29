@@ -1,3 +1,5 @@
+from typing import Any, Optional
+
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -20,17 +22,17 @@ class AuditLog(models.Model):
         SYSTEM = "system", _("System")
         API_KEY = "api_key", _("API Key")
 
-    tenant = models.ForeignKey(
+    tenant: models.ForeignKey[Tenant] = models.ForeignKey(
         Tenant, on_delete=models.CASCADE, verbose_name=_("tenant")
     )
-    actor_id = models.ForeignKey(
+    actor_id: models.ForeignKey[Optional[settings.AUTH_USER_MODEL]] = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         verbose_name=_("actor"),
     )
-    actor_type = models.CharField(
+    actor_type: models.CharField[str] = models.CharField(
         _("actor type"),
         max_length=255,
         choices=ActorType.choices,
@@ -39,40 +41,48 @@ class AuditLog(models.Model):
             "Distinguishes if the actor was a user, a system process, or an API Key."
         ),
     )
-    action = models.CharField(
+    action: models.CharField[str] = models.CharField(
         _("action"),
         max_length=255,
         help_text=_("E.g., 'user.login', 'invoice.created'"),
     )
 
-    target_content_type = models.ForeignKey(
+    target_content_type: models.ForeignKey[Optional[ContentType]] = models.ForeignKey(
         ContentType,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         verbose_name=_("object type"),
     )
-    target_object_id = models.CharField(
+    target_object_id: models.CharField[Optional[str]] = models.CharField(
         _("object ID"), max_length=255, null=True, blank=True
     )
-    target = GenericForeignKey("target_content_type", "target_object_id")
-    details = models.JSONField(_("details"), null=True, blank=True)
-    ip_address = models.GenericIPAddressField(_("IP address"), null=True, blank=True)
-    created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+    target: GenericForeignKey = GenericForeignKey(
+        "target_content_type", "target_object_id"
+    )
+    details: models.JSONField[Optional[Any]] = models.JSONField(
+        _("details"), null=True, blank=True
+    )
+    ip_address: models.GenericIPAddressField[Optional[str]] = (
+        models.GenericIPAddressField(_("IP address"), null=True, blank=True)
+    )
+    created_at: models.DateTimeField = models.DateTimeField(
+        _("created at"), auto_now_add=True
+    )
 
-    data_before = models.JSONField(
+    data_before: models.JSONField[Optional[Any]] = models.JSONField(
         _("data before"),
         null=True,
         blank=True,
         help_text=_("Object state (JSON) before the change (for UPDATE and DELETE)."),
     )
-    data_after = models.JSONField(
+    data_after: models.JSONField[Optional[Any]] = models.JSONField(
         _("data after"),
         null=True,
         blank=True,
         help_text=_("Object state (JSON) after the change (for CREATE and UPDATE)."),
     )
-    trace_id = models.CharField(
+    trace_id: models.CharField[Optional[str]] = models.CharField(
         _("trace ID"),
         max_length=255,
         null=True,
@@ -81,7 +91,7 @@ class AuditLog(models.Model):
             "Correlation ID to track a chain of events across microservices or processes."
         ),
     )
-    reason = models.TextField(
+    reason: models.TextField[Optional[str]] = models.TextField(
         _("reason"),
         null=True,
         blank=True,
@@ -89,27 +99,29 @@ class AuditLog(models.Model):
             "A field for the user or system to explain the reason for the change."
         ),
     )
-    changed_fields = models.JSONField(
+    changed_fields: models.JSONField[Optional[Any]] = models.JSONField(
         _("changed fields"),
         null=True,
         blank=True,
         help_text=_("Fields that were changed (for UPDATE operations)."),
     )
-    context = models.JSONField(
+    context: models.JSONField[Optional[Any]] = models.JSONField(
         _("context"),
         null=True,
         blank=True,
         help_text=_("Additional context for the action."),
     )
-    user_agent = models.TextField(_("user agent"), null=True, blank=True)
-    request_id = models.CharField(
+    user_agent: models.TextField[Optional[str]] = models.TextField(
+        _("user agent"), null=True, blank=True
+    )
+    request_id: models.CharField[Optional[str]] = models.CharField(
         _("request ID"),
         max_length=255,
         null=True,
         blank=True,
         help_text=_("Request ID for tracing."),
     )
-    checksum = models.BinaryField(
+    checksum: models.BinaryField[Optional[bytes]] = models.BinaryField(
         _("checksum"),
         null=True,
         blank=True,
@@ -117,11 +129,11 @@ class AuditLog(models.Model):
     )
 
     class Meta:
-        db_table = "audit_logs"
-        verbose_name = _("audit log")
-        verbose_name_plural = _("audit logs")
-        ordering = ["-created_at"]
-        indexes = [
+        db_table: str = "audit_logs"
+        verbose_name: str = _("audit log")
+        verbose_name_plural: str = _("audit logs")
+        ordering: list[str] = ["-created_at"]
+        indexes: list[models.Index] = [
             models.Index(
                 fields=["tenant", "-created_at"],
                 name="idx_logs_tenant_created_at",
@@ -139,21 +151,23 @@ class AuditMetric(models.Model):
     Corresponds to the 'audit_metrics' table.
     """
 
-    tenant = models.ForeignKey(
+    tenant: models.ForeignKey[Tenant] = models.ForeignKey(
         Tenant, on_delete=models.CASCADE, verbose_name=_("tenant")
     )
-    feature = models.ForeignKey(
+    feature: models.ForeignKey[Feature] = models.ForeignKey(
         Feature, on_delete=models.CASCADE, verbose_name=_("feature")
     )
-    quantity_used = models.BigIntegerField(_("quantity used"))
-    measured_at = models.DateTimeField(_("measured at"), auto_now_add=True)
+    quantity_used: models.BigIntegerField = models.BigIntegerField(_("quantity used"))
+    measured_at: models.DateTimeField = models.DateTimeField(
+        _("measured at"), auto_now_add=True
+    )
 
     class Meta:
-        db_table = "audit_metrics"
-        verbose_name = _("audit metric")
-        verbose_name_plural = _("audit metrics")
-        unique_together = [["tenant", "feature", "measured_at"]]
-        indexes = [
+        db_table: str = "audit_metrics"
+        verbose_name: str = _("audit metric")
+        verbose_name_plural: str = _("audit metrics")
+        unique_together: list[list[str]] = [["tenant", "feature", "measured_at"]]
+        indexes: list[models.Index] = [
             models.Index(fields=["tenant"], name="idx_audit_metrics_tenant_id"),
             models.Index(fields=["feature"], name="idx_audit_metrics_feature_id"),
         ]
@@ -170,26 +184,36 @@ class MetadataAudit(models.Model):
         UPDATE = "UPDATE", _("Update")
         DELETE = "DELETE", _("Delete")
 
-    table_name = models.CharField(_("table name"), max_length=255)
-    record_id = models.CharField(
+    table_name: models.CharField[str] = models.CharField(
+        _("table name"), max_length=255
+    )
+    record_id: models.CharField[str] = models.CharField(
         _("record ID"),
         max_length=255,
         help_text=_("Supports non-integer primary keys."),
     )
-    operation = models.CharField(
+    operation: models.CharField[str] = models.CharField(
         _("operation"), max_length=10, choices=Operation.choices
     )
-    before_state = models.JSONField(_("before state"), null=True, blank=True)
-    after_state = models.JSONField(_("after state"), null=True, blank=True)
-    changed_at = models.DateTimeField(_("changed at"), auto_now_add=True)
-    changed_by_user = models.ForeignKey(
+    before_state: models.JSONField[Optional[Any]] = models.JSONField(
+        _("before state"), null=True, blank=True
+    )
+    after_state: models.JSONField[Optional[Any]] = models.JSONField(
+        _("after state"), null=True, blank=True
+    )
+    changed_at: models.DateTimeField = models.DateTimeField(
+        _("changed at"), auto_now_add=True
+    )
+    changed_by_user: models.ForeignKey[
+        Optional[settings.AUTH_USER_MODEL]
+    ] = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         verbose_name=_("changed by"),
     )
-    tenant = models.ForeignKey(
+    tenant: models.ForeignKey[Optional[Tenant]] = models.ForeignKey(
         Tenant,
         on_delete=models.SET_NULL,
         null=True,
@@ -198,9 +222,9 @@ class MetadataAudit(models.Model):
     )
 
     class Meta:
-        db_table = "metadata_audit"
-        verbose_name = _("metadata audit")
-        verbose_name_plural = _("metadata audits")
+        db_table: str = "metadata_audit"
+        verbose_name: str = _("metadata audit")
+        verbose_name_plural: str = _("metadata audits")
 
 
 class AuditLogSignature(models.Model):
@@ -209,22 +233,24 @@ class AuditLogSignature(models.Model):
     Corresponds to the 'audit_log_signatures' table.
     """
 
-    audit_log = models.OneToOneField(
+    audit_log: models.OneToOneField[AuditLog] = models.OneToOneField(
         AuditLog,
         on_delete=models.CASCADE,
         primary_key=True,
         verbose_name=_("audit log"),
     )
-    signature = models.BinaryField(_("signature"))
-    signed_at = models.DateTimeField(_("signed at"), auto_now_add=True)
-    signer_user = models.ForeignKey(
+    signature: models.BinaryField = models.BinaryField(_("signature"))
+    signed_at: models.DateTimeField = models.DateTimeField(
+        _("signed at"), auto_now_add=True
+    )
+    signer_user: models.ForeignKey[settings.AUTH_USER_MODEL] = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, verbose_name=_("signer")
     )
 
     class Meta:
-        db_table = "audit_log_signatures"
-        verbose_name = _("audit log signature")
-        verbose_name_plural = _("audit log signatures")
+        db_table: str = "audit_log_signatures"
+        verbose_name: str = _("audit log signature")
+        verbose_name_plural: str = _("audit log signatures")
 
 
 class SensitiveAccessLog(models.Model):
@@ -233,18 +259,26 @@ class SensitiveAccessLog(models.Model):
     Corresponds to the 'sensitive_access_logs' table.
     """
 
-    user = models.ForeignKey(
+    user: models.ForeignKey[settings.AUTH_USER_MODEL] = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name=_("user")
     )
-    tenant = models.ForeignKey(
+    tenant: models.ForeignKey[Tenant] = models.ForeignKey(
         Tenant, on_delete=models.CASCADE, verbose_name=_("tenant")
     )
-    accessed_table = models.CharField(_("accessed table"), max_length=255)
-    accessed_key = models.CharField(_("accessed key"), max_length=255)
-    accessed_at = models.DateTimeField(_("accessed at"), auto_now_add=True)
-    query_params = models.JSONField(_("query params"), null=True, blank=True)
+    accessed_table: models.CharField[str] = models.CharField(
+        _("accessed table"), max_length=255
+    )
+    accessed_key: models.CharField[str] = models.CharField(
+        _("accessed key"), max_length=255
+    )
+    accessed_at: models.DateTimeField = models.DateTimeField(
+        _("accessed at"), auto_now_add=True
+    )
+    query_params: models.JSONField[Optional[Any]] = models.JSONField(
+        _("query params"), null=True, blank=True
+    )
 
     class Meta:
-        db_table = "sensitive_access_logs"
-        verbose_name = _("sensitive access log")
-        verbose_name_plural = _("sensitive access logs")
+        db_table: str = "sensitive_access_logs"
+        verbose_name: str = _("sensitive access log")
+        verbose_name_plural: str = _("sensitive access logs")
